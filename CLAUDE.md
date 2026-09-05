@@ -38,3 +38,24 @@ Pure math lives in dependency-free modules with unit tests; React components sta
 
 - Pure math: vitest (`*.test.js` next to the module).
 - Interactive flows: throwaway puppeteer-core scripts against system Chrome (headless) — mock `showOpenFilePicker`/`showDirectoryPicker` with `evaluateOnNewDocument`, build drops with `DragEvent` + `DataTransfer`, intercept `waitForFileChooser` for the fallback path. These scripts live in the session scratchpad, not the repo.
+
+## Next test pass — Windows/Edge (pending as of 2026-09-06)
+
+Phase 4 (captions, session persistence, New document) and a visual redesign of `styles.css`
+were built and verified only on the Mac in real Chrome — never on the actual target machine.
+Check on the work PC in Edge before trusting either:
+
+- [ ] Photo folder / Save folder pickers actually open (the FSA gotchas above were all found on
+      Chromium, but Edge has its own history of policy/version quirks — confirm on this machine).
+- [ ] Full paste workflow end-to-end: Greenshot capture → Alt-Tab → Ctrl+V → frame → aim at a
+      specific box with ⌖ → Ctrl+V again (replace) → Export all.
+- [ ] Captions: type one, reload the page, confirm it survived (rows should too; images should
+      *not* reappear — that's by design). Check `manifest.json` actually carries the caption text.
+- [ ] "New document" clears rows/images/captions and only confirms when there's something to lose.
+- [ ] Visual: the new gradient title, card shadows, and custom `input[type=range]` thumb styling
+      render sanely — Windows font rendering and Edge's own slider chrome can look different from
+      macOS Chrome. Check both light and dark (`?theme=` still overrides).
+- [ ] Themed scrollbars (`::-webkit-scrollbar-*`) — Windows scrollbars are always-visible (unlike
+      macOS overlay bars), so confirm the themed ones don't look cramped or clash with content.
+
+Delete this section once it's actually been run through on Windows.
