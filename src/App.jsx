@@ -36,8 +36,16 @@ export default function App() {
   // the picker with an instant AbortError after repeated prompt dismissals),
   // so failures surface in the settings panel instead of only the console.
   const [folderNote, setFolderNote] = useState(null);
+  const dirPickerBusy = useRef(false);
 
   async function pickDir(opts) {
+    // Chromium never settles a picker whose bundled permission prompt was left
+    // unanswered, and a second call then throws NotAllowedError "File picker
+    // already active" — turn both into one recognizable busy error.
+    if (dirPickerBusy.current) {
+      throw Object.assign(new Error('a folder picker is already open'), { name: 'PickerBusyError' });
+    }
+    dirPickerBusy.current = true;
     const t0 = performance.now();
     try {
       return await window.showDirectoryPicker(opts);
@@ -47,7 +55,12 @@ export default function App() {
       if (err?.name === 'AbortError' && performance.now() - t0 < 300) {
         throw Object.assign(new Error('the browser blocked the folder picker'), { name: 'PickerBlockedError' });
       }
+      if (err?.name === 'NotAllowedError' && /already active/i.test(err?.message ?? '')) {
+        throw Object.assign(new Error('a folder picker is already open'), { name: 'PickerBusyError' });
+      }
       throw err;
+    } finally {
+      dirPickerBusy.current = false;
     }
   }
 
@@ -55,9 +68,11 @@ export default function App() {
     if (err?.name === 'AbortError') return; // user cancelled — not an error
     console.error(`choosing ${which} folder failed`, err);
     setFolderNote(
-      err?.name === 'PickerBlockedError'
-        ? `The browser refused to open the ${which}-folder picker (it can lock this after dismissed prompts). Click the icon left of the address bar → reset the site's permissions, or restart the browser, then try again.`
-        : `Choosing the ${which} folder failed: ${err?.name ?? 'Error'} — ${err?.message ?? err}`
+      err?.name === 'PickerBusyError'
+        ? 'A folder picker or its permission prompt is still open — answer or close it (it may have collapsed into an icon by the address bar). Reloading the page also clears it.'
+        : err?.name === 'PickerBlockedError'
+          ? `The browser refused to open the ${which}-folder picker (it can lock this after dismissed prompts). Click the icon left of the address bar → reset the site's permissions, or restart the browser, then try again.`
+          : `Choosing the ${which} folder failed: ${err?.name ?? 'Error'} — ${err?.message ?? err}`
     );
   }
 
@@ -87,8 +102,15 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  async function pickSaveDir() {
-    const handle = await pickDir({ id: 'snappy-save-dir', mode: 'readwrite' });
+  // Choosing from settings picks read-only on purpose: mode 'readwrite' makes
+  // Chromium bundle a "save changes?" permission prompt into the picker, and
+  // leaving that prompt unanswered hangs the picker promise forever ("File
+  // picker already active" on every later click). Write permission is
+  // requested at export time instead, where a fresh click activation exists.
+  async function pickSaveDir(mode) {
+    const opts = { id: 'snappy-save-dir' };
+    if (mode) opts.mode = mode;
+    const handle = await pickDir(opts);
     setSaveDir(handle);
     idbSet('saveDir', handle).catch(() => {});
     return handle;
@@ -248,14 +270,24 @@ export default function App() {
       let dir = saveDir;
       if (dir && !(await hasWritePermission(dir))) dir = null;
       try {
-        if (!dir) dir = await pickSaveDir();
+        // Fresh pick mid-export: readwrite here is fine — the permission
+        // prompt follows the pick immediately while the user is engaged.
+        if (!dir) dir = await pickSaveDir('readwrite');
       } catch (err) {
         if (err?.name === 'AbortError') return;
+        if (err?.name === 'PickerBusyError') {
+          setExportStatus({ ok: false, text: 'A folder picker or permission prompt is still open — answer or close it (check by the address bar), then export again.' });
+          return;
+        }
         if (err?.name === 'PickerBlockedError') {
           setExportStatus({ ok: false, text: 'The browser refused to open the save-folder picker — reset the site\'s permissions (icon left of the address bar) and try again.' });
           return;
         }
         throw err;
+      }
+      if (!(await hasWritePermission(dir))) {
+        setExportStatus({ ok: false, text: `No permission to write into “${dir.name}” — click Export all again and allow access when the browser asks.` });
+        return;
       }
 
       const figs = figNumbers(rows);
