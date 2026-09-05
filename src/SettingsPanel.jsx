@@ -40,6 +40,7 @@ export default function SettingsPanel({
   saveDir,
   onChooseSaveDir,
   onClearSaveDir,
+  folderNote,
 }) {
   const problems = profileProblems(profile);
   const set = (patch) => onChange({ ...profile, ...patch });
@@ -97,7 +98,9 @@ export default function SettingsPanel({
             {photoDir ? <strong>{photoDir.name}</strong> : <span className="settings-folder-none">last-used folder</span>}
             <button onClick={onChoosePhotoDir}>Choose…</button>
             {photoDir && <button onClick={onClearPhotoDir}>Clear</button>}
-            <span className="settings-folder-hint">where the image picker opens</span>
+            <span className="settings-folder-hint">
+              where the image picker opens — pin it, or other pickers (e.g. save folder) move the last-used location
+            </span>
           </div>
           <div className="settings-folder">
             <span>Save folder:</span>
@@ -106,6 +109,7 @@ export default function SettingsPanel({
             {saveDir && <button onClick={onClearSaveDir}>Clear</button>}
             <span className="settings-folder-hint">where Export all writes fig-NN.jpg + manifest.json</span>
           </div>
+          {folderNote && <div className="settings-problems">⚠ {folderNote}</div>}
         </>
       )}
 

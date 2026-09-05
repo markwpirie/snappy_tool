@@ -32,13 +32,43 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  async function choosePhotoDir() {
+  // Folder pickers fail silently far too easily (e.g. Chromium auto-dismisses
+  // the picker with an instant AbortError after repeated prompt dismissals),
+  // so failures surface in the settings panel instead of only the console.
+  const [folderNote, setFolderNote] = useState(null);
+
+  async function pickDir(opts) {
+    const t0 = performance.now();
     try {
-      const handle = await window.showDirectoryPicker({ id: 'snappy-photo-dir' });
-      setPhotoDir(handle);
-      await idbSet('photoDir', handle);
+      return await window.showDirectoryPicker(opts);
     } catch (err) {
-      if (err?.name !== 'AbortError') console.error('choosing photo folder failed', err);
+      // A human cancel takes longer than this; an instant AbortError means the
+      // browser refused to even open the picker.
+      if (err?.name === 'AbortError' && performance.now() - t0 < 300) {
+        throw Object.assign(new Error('the browser blocked the folder picker'), { name: 'PickerBlockedError' });
+      }
+      throw err;
+    }
+  }
+
+  function noteFolderError(which, err) {
+    if (err?.name === 'AbortError') return; // user cancelled — not an error
+    console.error(`choosing ${which} folder failed`, err);
+    setFolderNote(
+      err?.name === 'PickerBlockedError'
+        ? `The browser refused to open the ${which}-folder picker (it can lock this after dismissed prompts). Click the icon left of the address bar → reset the site's permissions, or restart the browser, then try again.`
+        : `Choosing the ${which} folder failed: ${err?.name ?? 'Error'} — ${err?.message ?? err}`
+    );
+  }
+
+  async function choosePhotoDir() {
+    setFolderNote(null);
+    try {
+      const handle = await pickDir({ id: 'snappy-photo-dir' });
+      setPhotoDir(handle);
+      idbSet('photoDir', handle).catch(() => {});
+    } catch (err) {
+      noteFolderError('photo', err);
     }
   }
 
@@ -58,17 +88,18 @@ export default function App() {
   }, []);
 
   async function pickSaveDir() {
-    const handle = await window.showDirectoryPicker({ id: 'snappy-save-dir', mode: 'readwrite' });
+    const handle = await pickDir({ id: 'snappy-save-dir', mode: 'readwrite' });
     setSaveDir(handle);
     idbSet('saveDir', handle).catch(() => {});
     return handle;
   }
 
   async function chooseSaveDir() {
+    setFolderNote(null);
     try {
       await pickSaveDir();
     } catch (err) {
-      if (err?.name !== 'AbortError') console.error('choosing save folder failed', err);
+      noteFolderError('save', err);
     }
   }
 
@@ -220,6 +251,10 @@ export default function App() {
         if (!dir) dir = await pickSaveDir();
       } catch (err) {
         if (err?.name === 'AbortError') return;
+        if (err?.name === 'PickerBlockedError') {
+          setExportStatus({ ok: false, text: 'The browser refused to open the save-folder picker — reset the site\'s permissions (icon left of the address bar) and try again.' });
+          return;
+        }
         throw err;
       }
 
@@ -302,6 +337,7 @@ export default function App() {
         saveDir={saveDir}
         onChooseSaveDir={chooseSaveDir}
         onClearSaveDir={clearSaveDir}
+        folderNote={folderNote}
       />
 
       {problems.length === 0 ? (
