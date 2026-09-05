@@ -37,6 +37,23 @@ export function initialView(img, box) {
   };
 }
 
+// Re-fit an existing view when the box changes size (page profile edits,
+// row type/height changes). Preserves the user's framing: the image point at
+// the box centre stays centred, and the zoom level relative to minimum cover
+// is kept, then everything is re-clamped for the new box.
+export function reframe(view, img, oldBox, newBox) {
+  const oldMin = minCoverScale(oldBox.w, oldBox.h, img.w, img.h);
+  const newMin = minCoverScale(newBox.w, newBox.h, img.w, img.h);
+  const scale = Math.min(newMin * (view.scale / oldMin), newMin * 8);
+  const srcCx = (oldBox.w / 2 - view.offsetX) / view.scale;
+  const srcCy = (oldBox.h / 2 - view.offsetY) / view.scale;
+  return {
+    scale,
+    offsetX: clampOffset(newBox.w / 2 - srcCx * scale, newBox.w, img.w, scale),
+    offsetY: clampOffset(newBox.h / 2 - srcCy * scale, newBox.h, img.h, scale),
+  };
+}
+
 // Region of the source image visible in the box, in image pixels.
 // Used for the export draw call.
 export function sourceRect(view, box) {

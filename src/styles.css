@@ -2,17 +2,86 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: light;
+  --bg: #f4f4f6;
+  --text: #1a1a2e;
+  --muted: #666;
+  --faint: #888;
+  --panel: #fff;
+  --border: #c5c5cf;
+  --border-soft: #d8d8e0;
+  --control-bg: #fff;
+  --control-hover: #f0f0f4;
+  --box-bg: #e2e2e8;
+  --accent: #4a6cf7;
+  --accent-hover: #3a5ae0;
+  --accent-soft: #dde4fd;
+  --accent-text: #fff;
+  --danger: #b3261e;
+  --overlay: rgba(26, 26, 46, 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #16161d;
+    --text: #e8e8ee;
+    --muted: #a2a2ad;
+    --faint: #84848f;
+    --panel: #1f1f28;
+    --border: #45454f;
+    --border-soft: #33333d;
+    --control-bg: #2a2a34;
+    --control-hover: #34343f;
+    --box-bg: #2a2a33;
+    --accent: #5b7cff;
+    --accent-hover: #6f8cff;
+    --accent-soft: #2a3354;
+    --accent-text: #fff;
+    --danger: #ff6b61;
+    --overlay: rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #16161d;
+  --text: #e8e8ee;
+  --muted: #a2a2ad;
+  --faint: #84848f;
+  --panel: #1f1f28;
+  --border: #45454f;
+  --border-soft: #33333d;
+  --control-bg: #2a2a34;
+  --control-hover: #34343f;
+  --box-bg: #2a2a33;
+  --accent: #5b7cff;
+  --accent-hover: #6f8cff;
+  --accent-soft: #2a3354;
+  --accent-text: #fff;
+  --danger: #ff6b61;
+  --overlay: rgba(0, 0, 0, 0.55);
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  background: #f4f4f6;
-  color: #1a1a2e;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .app {
-  max-width: 720px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 24px 16px 64px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 h1 {
@@ -20,8 +89,12 @@ h1 {
   margin: 0 0 4px;
 }
 
+.theme-toggle {
+  min-width: 6em;
+}
+
 .phase-note {
-  color: #555;
+  color: var(--muted);
   font-size: 0.9rem;
   margin: 0 0 20px;
   max-width: 48em;
@@ -35,15 +108,19 @@ h1 {
 
 .cropbox-frame {
   position: relative;
-  background: #e2e2e8;
-  border: 2px solid #c5c5cf;
+  background: var(--box-bg);
+  border: 2px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
 }
 
+.cropbox-frame.paste-target {
+  border-color: var(--accent);
+}
+
 .cropbox-frame.drag-over {
-  border-color: #4a6cf7;
-  background: #dde4fd;
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .cropbox-frame canvas {
@@ -61,7 +138,7 @@ h1 {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #777;
+  color: var(--faint);
   font-size: 0.95rem;
   pointer-events: none;
 }
@@ -77,11 +154,13 @@ h1 {
   align-items: center;
   gap: 10px;
   font-size: 0.85rem;
-  color: #444;
+  color: var(--muted);
 }
 
 .zoom-row input[type='range'] {
   flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
 }
 
 .zoom-label {
@@ -100,14 +179,15 @@ button {
   font: inherit;
   font-size: 0.85rem;
   padding: 6px 12px;
-  border: 1px solid #c5c5cf;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--control-bg);
+  color: var(--text);
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
-  background: #f0f0f4;
+  background: var(--control-hover);
 }
 
 button:disabled {
@@ -116,11 +196,186 @@ button:disabled {
 }
 
 button.primary {
-  background: #4a6cf7;
-  border-color: #4a6cf7;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 button.primary:hover:not(:disabled) {
-  background: #3a5ae0;
+  background: var(--accent-hover);
+}
+
+select,
+input[type='number'] {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--control-bg);
+  color: var(--text);
+}
+
+/* Settings panel */
+
+.settings {
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 24px;
+}
+
+.settings summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.settings-summary-note {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-left: 10px;
+}
+
+.settings-presets {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.settings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-bottom: 12px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.settings-input {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.settings-input input {
+  width: 5.5em;
+}
+
+.settings-unit {
+  color: var(--faint);
+  font-size: 0.8rem;
+}
+
+.settings-sample {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.settings-problems {
+  font-size: 0.85rem;
+  color: var(--danger);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-invalid {
+  color: var(--danger);
+  font-size: 0.95rem;
+}
+
+/* Rows */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-bottom: 28px;
+}
+
+.row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.row-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.row-size {
+  font-size: 0.8rem;
+  color: var(--faint);
+}
+
+.row-spacer {
+  flex: 1;
+}
+
+.row-boxes {
+  display: flex;
+  align-items: flex-start;
+}
+
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+/* Box chrome */
+
+.cropbox-fig {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 0.7rem;
+  color: #fff;
+  background: var(--overlay);
+  padding: 1px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.paste-target-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  padding: 1px 7px;
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  background: var(--overlay);
+}
+
+.paste-target-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.paste-target-btn.active {
+  background: var(--accent);
+}
+
+.cropbox-size {
+  font-size: 0.75rem;
+  color: var(--faint);
+  text-align: center;
 }
