@@ -7,6 +7,7 @@ export default function Row({
   rowCount,
   profile,
   pxPerMm,
+  photoDir,
   figStart, // document-order figure number of this row's first box
   pasteTargetKey, // boxKey the next Ctrl+V lands in, or null
   pasteOverrideKey, // boxKey the user explicitly aimed at, or null
@@ -60,6 +61,7 @@ export default function Row({
               exportH={geo.exportH}
               sizeLabel={`${geo.widthMm.toFixed(1)} × ${geo.heightMm} mm`}
               figNumber={figStart + i}
+              photoDir={photoDir}
               isPasteTarget={boxKey === pasteTargetKey}
               isPasteOverride={boxKey === pasteOverrideKey}
               onSetPasteTarget={(set) => onSetPasteOverride(set ? boxKey : null)}

@@ -3,6 +3,7 @@ import Row from './Row.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import { DEFAULT_PROFILE, ROW_TYPES, HEIGHT_PRESETS, rowCellCount, profileProblems } from './pageGeometry.js';
 import { planImport } from './importPlan.js';
+import { idbGet, idbSet, idbDelete } from './idb.js';
 
 // On-screen scale: how many CSS px represent one page mm. Purely cosmetic —
 // export resolution comes from the profile's dpi, never from this.
@@ -20,6 +21,30 @@ export default function App() {
   const [pasteOverride, setPasteOverride] = useState(null); // boxKey the user aimed Ctrl+V at
   const [exporting, setExporting] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { afterKey, files } from a multi-pick
+
+  // Pinned photo folder: the file picker opens here instead of wherever the
+  // browser last remembered. Persisted as a directory handle in IndexedDB.
+  const [photoDir, setPhotoDir] = useState(null);
+  useEffect(() => {
+    idbGet('photoDir')
+      .then((handle) => handle && setPhotoDir(handle))
+      .catch(() => {});
+  }, []);
+
+  async function choosePhotoDir() {
+    try {
+      const handle = await window.showDirectoryPicker({ id: 'snappy-photo-dir' });
+      setPhotoDir(handle);
+      await idbSet('photoDir', handle);
+    } catch (err) {
+      if (err?.name !== 'AbortError') console.error('choosing photo folder failed', err);
+    }
+  }
+
+  function clearPhotoDir() {
+    setPhotoDir(null);
+    idbDelete('photoDir').catch(() => {});
+  }
   const boxApis = useRef(new Map()); // boxKey → { export }
 
   // Theme: 'system' follows the OS; 'light'/'dark' pin it via data-theme.
@@ -169,7 +194,13 @@ export default function App() {
         Paste (Ctrl+V) fills the first empty box, or aim it with a box's ⌖ button.
       </p>
 
-      <SettingsPanel profile={profile} onChange={setProfile} />
+      <SettingsPanel
+        profile={profile}
+        onChange={setProfile}
+        photoDir={photoDir}
+        onChoosePhotoDir={choosePhotoDir}
+        onClearPhotoDir={clearPhotoDir}
+      />
 
       {problems.length === 0 ? (
         <>
@@ -182,6 +213,7 @@ export default function App() {
                 rowCount={rows.length}
                 profile={profile}
                 pxPerMm={DISPLAY_PX_PER_MM}
+                photoDir={photoDir}
                 figStart={figStarts[index]}
                 pasteTargetKey={pasteTargetKey}
                 pasteOverrideKey={overrideValid ? pasteOverride : null}

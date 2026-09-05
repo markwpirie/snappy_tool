@@ -31,7 +31,7 @@ function NumberField({ label, value, onCommit, min = 0, step = 0.1, unit }) {
   );
 }
 
-export default function SettingsPanel({ profile, onChange }) {
+export default function SettingsPanel({ profile, onChange, photoDir, onChoosePhotoDir, onClearPhotoDir }) {
   const problems = profileProblems(profile);
   const set = (patch) => onChange({ ...profile, ...patch });
   const setHeight = (id, mm) => onChange({ ...profile, rowHeightsMm: { ...profile.rowHeightsMm, [id]: mm } });
@@ -80,6 +80,16 @@ export default function SettingsPanel({ profile, onChange }) {
           />
         ))}
       </div>
+
+      {'showDirectoryPicker' in window && (
+        <div className="settings-folder">
+          <span>Photo folder:</span>
+          {photoDir ? <strong>{photoDir.name}</strong> : <span className="settings-folder-none">last-used folder</span>}
+          <button onClick={onChoosePhotoDir}>Choose…</button>
+          {photoDir && <button onClick={onClearPhotoDir}>Clear</button>}
+          <span className="settings-folder-hint">where the image picker opens</span>
+        </div>
+      )}
 
       {problems.length > 0 ? (
         <div className="settings-problems">

@@ -10,6 +10,7 @@ export default function CropBox({
   figNumber,
   isPasteTarget,
   isPasteOverride,
+  photoDir,
   onSetPasteTarget,
   onImageChange,
   onRegister,
@@ -58,8 +59,7 @@ export default function CropBox({
       return;
     }
     try {
-      const handles = await window.showOpenFilePicker({
-        id: 'snappy-photos',
+      const opts = {
         multiple: true,
         types: [
           {
@@ -67,10 +67,17 @@ export default function CropBox({
             accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'] },
           },
         ],
-      });
+      };
+      // A pinned folder beats the browser's own last-used memory (`id`),
+      // which can latch onto temp folders (e.g. macOS Photos-library picks).
+      if (photoDir) opts.startIn = photoDir;
+      else opts.id = 'snappy-photos';
+      const handles = await window.showOpenFilePicker(opts);
       acceptFiles(await Promise.all(handles.map((h) => h.getFile())));
-    } catch {
-      // picker cancelled
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user cancelled the picker
+      console.error('showOpenFilePicker failed, falling back to file input', err);
+      fileInputRef.current?.click();
     }
   }
 
@@ -141,10 +148,9 @@ export default function CropBox({
   }, [image, displayW, displayH]);
 
   function onPointerDown(e) {
-    if (!image) {
-      pickFiles();
-      return;
-    }
+    // Empty box opens the picker from onClick — showOpenFilePicker needs the
+    // user-activation grant, which pointerdown doesn't reliably carry.
+    if (!image) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { pointerId: e.pointerId, lastX: e.clientX, lastY: e.clientY };
   }
@@ -234,6 +240,9 @@ export default function CropBox({
         <canvas
           ref={canvasRef}
           style={{ width: displayW, height: displayH, cursor: image ? 'grab' : 'pointer', touchAction: 'none' }}
+          onClick={() => {
+            if (!image) pickFiles();
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
