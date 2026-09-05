@@ -1,0 +1,126 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #f4f4f6;
+  color: #1a1a2e;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 4px;
+}
+
+.phase-note {
+  color: #555;
+  font-size: 0.9rem;
+  margin: 0 0 20px;
+  max-width: 48em;
+}
+
+.cropbox {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cropbox-frame {
+  position: relative;
+  background: #e2e2e8;
+  border: 2px solid #c5c5cf;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cropbox-frame.drag-over {
+  border-color: #4a6cf7;
+  background: #dde4fd;
+}
+
+.cropbox-frame canvas {
+  display: block;
+}
+
+.cropbox-frame canvas:active {
+  cursor: grabbing !important;
+}
+
+.cropbox-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #777;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.cropbox-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.zoom-row input[type='range'] {
+  flex: 1;
+}
+
+.zoom-label {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  border: 1px solid #c5c5cf;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #f0f0f4;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  background: #4a6cf7;
+  border-color: #4a6cf7;
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  background: #3a5ae0;
+}
