@@ -68,6 +68,14 @@ describe('buildManifest', () => {
     expect(m.rows[0].type).toBe('1up');
   });
 
+  it('fills in caption text by boxKey, defaulting to empty', () => {
+    const m = buildManifest(DEFAULT_PROFILE, rows.slice(0, 1), new Set(['1-0', '1-1']), WHEN, {
+      '1-0': 'North elevation prior to works',
+    });
+    expect(m.rows[0].images[0].caption).toBe('North elevation prior to works');
+    expect(m.rows[0].images[1].caption).toBe('');
+  });
+
   it('derives sizes from a custom profile, not baked-in A4', () => {
     const profile = {
       ...DEFAULT_PROFILE,

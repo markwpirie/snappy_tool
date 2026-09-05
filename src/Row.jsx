@@ -11,11 +11,13 @@ export default function Row({
   figStart, // document-order figure number of this row's first box
   pasteTargetKey, // boxKey the next Ctrl+V lands in, or null
   pasteOverrideKey, // boxKey the user explicitly aimed at, or null
+  captions, // boxKey → caption text
   onChange,
   onDelete,
   onMove,
   onImageChange,
   onSetPasteOverride,
+  onCaptionChange,
   onRegisterBox,
   onExtraFiles,
 }) {
@@ -64,6 +66,8 @@ export default function Row({
               photoDir={photoDir}
               isPasteTarget={boxKey === pasteTargetKey}
               isPasteOverride={boxKey === pasteOverrideKey}
+              caption={captions[boxKey]}
+              onCaptionChange={(text) => onCaptionChange(boxKey, text)}
               onSetPasteTarget={(set) => onSetPasteOverride(set ? boxKey : null)}
               onImageChange={(has) => onImageChange(boxKey, has)}
               onRegister={(api) => onRegisterBox(boxKey, api)}

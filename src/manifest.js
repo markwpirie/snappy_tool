@@ -6,9 +6,9 @@ export const figName = (n) => `fig-${String(n).padStart(2, '0')}.jpg`;
 
 // The save bundle's manifest.json, consumed by the Word VBA macro
 // (InsertFiguresWithCaptions): it inserts each file at the stated widthMm, so
-// Word never rescales meaningfully. Pure so it's unit-testable; captions are
-// empty placeholders until Phase 4 adds caption fields.
-export function buildManifest(profile, rows, filledKeys, generated) {
+// Word never rescales meaningfully. Pure so it's unit-testable. `captions` is
+// a boxKey → text map; omit it (or leave a box out of it) for an empty caption.
+export function buildManifest(profile, rows, filledKeys, generated, captions = {}) {
   let fig = 1;
   const outRows = [];
   for (const row of rows) {
@@ -16,12 +16,13 @@ export function buildManifest(profile, rows, filledKeys, generated) {
     const images = [];
     for (let i = 0; i < geo.count; i++) {
       const n = fig++;
-      if (!filledKeys.has(`${row.id}-${i}`)) continue;
+      const key = `${row.id}-${i}`;
+      if (!filledKeys.has(key)) continue;
       images.push({
         file: figName(n),
         widthMm: Number(geo.widthMm.toFixed(2)),
         heightMm: geo.heightMm,
-        caption: '',
+        caption: captions[key] ?? '',
       });
     }
     if (images.length > 0) outRows.push({ type: row.type, heightPreset: row.heightPreset, images });

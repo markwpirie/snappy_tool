@@ -13,15 +13,57 @@ const DISPLAY_PX_PER_MM = 4;
 let nextRowId = 1;
 const newRow = (type, heightPreset) => ({ id: nextRowId++, type, heightPreset });
 
+// Session state (rows/captions/profile/add-row picks) survives an accidental
+// close via localStorage — deliberately excludes images, which are too big
+// for it and are re-added from source each session anyway. Read once at
+// module scope: every state initializer below shares this one parse instead
+// of re-reading localStorage per field.
+const SESSION_KEY = 'snappy-session';
+let cachedSession;
+function loadSession() {
+  if (cachedSession !== undefined) return cachedSession;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    cachedSession = raw ? JSON.parse(raw) : null;
+  } catch {
+    cachedSession = null;
+  }
+  return cachedSession;
+}
+
+function restoredRows(session) {
+  const saved = session?.rows;
+  if (!Array.isArray(saved) || saved.length === 0) return null;
+  const valid = saved.filter(
+    (r) =>
+      r && Number.isFinite(r.id) && ROW_TYPES.some((t) => t.id === r.type) && HEIGHT_PRESETS.some((p) => p.id === r.heightPreset)
+  );
+  if (valid.length === 0) return null;
+  nextRowId = Math.max(...valid.map((r) => r.id)) + 1;
+  return valid.map((r) => ({ id: r.id, type: r.type, heightPreset: r.heightPreset }));
+}
+
 export default function App() {
-  const [profile, setProfile] = useState(DEFAULT_PROFILE);
-  const [rows, setRows] = useState([newRow('2up', 'standard')]);
-  const [filledBoxes, setFilledBoxes] = useState(() => new Set()); // boxKeys currently holding an image
-  const [addType, setAddType] = useState('2up');
-  const [addHeight, setAddHeight] = useState('standard');
+  const session = loadSession();
+  const [profile, setProfile] = useState(() => ({ ...DEFAULT_PROFILE, ...session?.profile }));
+  const [rows, setRows] = useState(() => restoredRows(session) ?? [newRow('2up', 'standard')]);
+  const [captions, setCaptions] = useState(() => (session?.captions && typeof session.captions === 'object' ? session.captions : {}));
+  const [filledBoxes, setFilledBoxes] = useState(() => new Set()); // boxKeys currently holding an image — never restored, images aren't persisted
+  const [addType, setAddType] = useState(() => (ROW_TYPES.some((t) => t.id === session?.addType) || session?.addType === '2x2' ? session.addType : '2up'));
+  const [addHeight, setAddHeight] = useState(() => (HEIGHT_PRESETS.some((p) => p.id === session?.addHeight) ? session.addHeight : 'standard'));
   const [pasteOverride, setPasteOverride] = useState(null); // boxKey the user aimed Ctrl+V at
   const [exporting, setExporting] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { afterKey, files } from a multi-pick
+
+  // Persist rows/captions/profile/add-row picks (not images) so an accidental
+  // close doesn't lose the layout.
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ profile, rows, captions, addType, addHeight }));
+    } catch {
+      // private mode / quota — session just won't persist
+    }
+  }, [profile, rows, captions, addType, addHeight]);
 
   // Pinned photo folder: the file picker opens here instead of wherever the
   // browser last remembered. Persisted as a directory handle in IndexedDB.
@@ -187,19 +229,41 @@ export default function App() {
   function updateRow(id, patch) {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     if (patch.type) {
-      // Boxes beyond the new count unmount and lose their image.
+      // Boxes beyond the new count unmount and lose their image/caption.
       const count = rowCellCount(patch.type);
-      setFilledBoxes((prev) => new Set([...prev].filter((k) => !k.startsWith(`${id}-`) || Number(k.split('-')[1]) < count)));
+      const dropped = (k) => k.startsWith(`${id}-`) && Number(k.split('-')[1]) >= count;
+      setFilledBoxes((prev) => new Set([...prev].filter((k) => !dropped(k))));
+      setCaptions((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !dropped(k))));
     }
   }
 
   function deleteRow(id) {
     const row = rows.find((r) => r.id === id);
     if (!row) return;
-    const hasImages = Array.from({ length: rowCellCount(row.type) }, (_, i) => `${id}-${i}`).some((k) => filledBoxes.has(k));
-    if (hasImages && !window.confirm('This row contains images. Delete it anyway?')) return;
+    const rowKeys = Array.from({ length: rowCellCount(row.type) }, (_, i) => `${id}-${i}`);
+    const hasContent = rowKeys.some((k) => filledBoxes.has(k) || captions[k]);
+    if (hasContent && !window.confirm('This row contains images or captions. Delete it anyway?')) return;
     setRows((rs) => rs.filter((r) => r.id !== id));
     setFilledBoxes((prev) => new Set([...prev].filter((k) => !k.startsWith(`${id}-`))));
+    setCaptions((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${id}-`))));
+  }
+
+  function onCaptionChange(boxKey, text) {
+    setCaptions((prev) => (text ? { ...prev, [boxKey]: text } : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== boxKey))));
+  }
+
+  // Clears the whole document — rows, images, and captions — back to a
+  // single empty row. Confirms first if there's anything to lose; the fresh
+  // row ids naturally unmount every CropBox, dropping their images too.
+  function newDocument() {
+    const hasContent = filledBoxes.size > 0 || Object.values(captions).some(Boolean);
+    if (hasContent && !window.confirm('Start a new document? This clears all rows, images, and captions.')) return;
+    setRows([newRow('2up', 'standard')]);
+    setCaptions({});
+    setFilledBoxes(new Set());
+    setPasteOverride(null);
+    setPendingImport(null);
+    setExportStatus(null);
   }
 
   function moveRow(id, dir) {
@@ -308,7 +372,7 @@ export default function App() {
         await writeToDir(dir, figName(figs.get(key)), blob);
         count++;
       }
-      const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString());
+      const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString(), captions);
       await writeToDir(dir, 'manifest.json', new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
       setExportStatus({ ok: true, text: `Saved ${count} image${count === 1 ? '' : 's'} + manifest.json to “${dir.name}”` });
     } catch (err) {
@@ -337,7 +401,7 @@ export default function App() {
       count++;
       await new Promise((r) => setTimeout(r, 350));
     }
-    const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString());
+    const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString(), captions);
     const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
@@ -364,9 +428,10 @@ export default function App() {
         </button>
       </header>
       <p className="phase-note">
-        Phase 3 — save bundle. Every cell's shape and export resolution derive from the page profile below.
+        Phase 4 — workflow polish. Every cell's shape and export resolution derive from the page profile below.
         Paste (Ctrl+V) fills the first empty box, or aim it with a box's ⌖ button. Export all writes
-        fig-NN.jpg + manifest.json straight into your save folder.
+        fig-NN.jpg + manifest.json (with captions) straight into your save folder. Rows and captions are
+        remembered across reloads — images are not.
       </p>
 
       <SettingsPanel
@@ -396,11 +461,13 @@ export default function App() {
                 figStart={figStarts[index]}
                 pasteTargetKey={pasteTargetKey}
                 pasteOverrideKey={overrideValid ? pasteOverride : null}
+                captions={captions}
                 onChange={updateRow}
                 onDelete={deleteRow}
                 onMove={moveRow}
                 onImageChange={onImageChange}
                 onSetPasteOverride={setPasteOverride}
+                onCaptionChange={onCaptionChange}
                 onRegisterBox={registerBox}
                 onExtraFiles={(boxKey, files) =>
                   setPendingImport((prev) =>
@@ -428,6 +495,7 @@ export default function App() {
             </select>
             <button className="primary" onClick={addRow}>Add</button>
             <span className="row-spacer" />
+            <button onClick={newDocument} title="Clear all rows, images, and captions">New document</button>
             <button className="primary" onClick={exportAll} disabled={filledBoxes.size === 0 || exporting}>
               {exporting ? 'Exporting…' : `Export all (${filledBoxes.size})`}
             </button>

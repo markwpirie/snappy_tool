@@ -1,6 +1,6 @@
 # Snappy Tool
 
-A React + Vite web app for cropping photos into page-derived figure layouts for Word reports. The agreed design is `snappy_tool_proposal_v2.md` — read it before making structural changes. Build order: phases 1–5 as listed there (1–3 are done; Phase 4 is workflow polish — captions, session-state persistence, paste-replace).
+A React + Vite web app for cropping photos into page-derived figure layouts for Word reports. The agreed design is `snappy_tool_proposal_v2.md` — read it before making structural changes. Build order: phases 1–5 as listed there (1–4 are done; Phase 5 — generating a `.docx` directly instead of the manifest+macro handoff — is an unstarted stretch goal).
 
 ## Commands
 

@@ -11,6 +11,8 @@ export default function CropBox({
   isPasteTarget,
   isPasteOverride,
   photoDir,
+  caption,
+  onCaptionChange,
   onSetPasteTarget,
   onImageChange,
   onRegister,
@@ -290,6 +292,13 @@ export default function CropBox({
           </button>
         </div>
         {sizeLabel && <div className="cropbox-size">{sizeLabel}</div>}
+        <input
+          type="text"
+          className="caption-input"
+          placeholder="Caption…"
+          value={caption ?? ''}
+          onChange={(e) => onCaptionChange?.(e.target.value)}
+        />
       </div>
 
       <input
