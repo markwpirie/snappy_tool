@@ -14,7 +14,16 @@ function withStore(mode, fn) {
     open.onsuccess = () => {
       const db = open.result;
       const tx = db.transaction(STORE, mode);
-      const req = fn(tx.objectStore(STORE));
+      let req;
+      try {
+        // put() throws synchronously on uncloneable values — route that into
+        // the promise instead of escaping as an unhandled event-handler error.
+        req = fn(tx.objectStore(STORE));
+      } catch (err) {
+        db.close();
+        reject(err);
+        return;
+      }
       tx.oncomplete = () => {
         db.close();
         resolve(req?.result);

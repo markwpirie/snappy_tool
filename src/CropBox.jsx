@@ -127,7 +127,7 @@ export default function CropBox({
   // Expose an imperative export handle so App's "Export all" can walk the
   // boxes in document order.
   useEffect(() => {
-    onRegister?.({ export: exportImage, loadFile });
+    onRegister?.({ export: exportImage, exportBlob: renderBlob, loadFile });
     return () => onRegister?.(null);
   });
 
@@ -193,8 +193,10 @@ export default function CropBox({
     onImageChange?.(false);
   }
 
-  function exportImage() {
-    if (!image || !view) return Promise.resolve();
+  // Render the crop at export resolution as a JPEG blob. "Export all" writes
+  // these straight into the save folder; the per-box button downloads one.
+  function renderBlob() {
+    if (!image || !view) return Promise.resolve(null);
     const out = document.createElement('canvas');
     out.width = exportW;
     out.height = exportH;
@@ -202,21 +204,18 @@ export default function CropBox({
     ctx.imageSmoothingQuality = 'high';
     const src = sourceRect(view, box);
     ctx.drawImage(image.el, src.x, src.y, src.w, src.h, 0, 0, exportW, exportH);
-    return new Promise((resolve) => {
-      out.toBlob(
-        (blob) => {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `fig-${String(figNumber ?? 1).padStart(2, '0')}.jpg`;
-          a.click();
-          URL.revokeObjectURL(url);
-          resolve();
-        },
-        'image/jpeg',
-        0.92
-      );
-    });
+    return new Promise((resolve) => out.toBlob(resolve, 'image/jpeg', 0.92));
+  }
+
+  async function exportImage() {
+    const blob = await renderBlob();
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fig-${String(figNumber ?? 1).padStart(2, '0')}.jpg`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const min = image ? minCoverScale(box.w, box.h, image.w, image.h) : 1;

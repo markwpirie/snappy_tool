@@ -3,6 +3,7 @@ import Row from './Row.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import { DEFAULT_PROFILE, ROW_TYPES, HEIGHT_PRESETS, rowCellCount, profileProblems } from './pageGeometry.js';
 import { planImport } from './importPlan.js';
+import { buildManifest, figName, figNumbers } from './manifest.js';
 import { idbGet, idbSet, idbDelete } from './idb.js';
 
 // On-screen scale: how many CSS px represent one page mm. Purely cosmetic —
@@ -45,7 +46,49 @@ export default function App() {
     setPhotoDir(null);
     idbDelete('photoDir').catch(() => {});
   }
-  const boxApis = useRef(new Map()); // boxKey → { export }
+
+  // Save folder: where "Export all" writes fig-NN.jpg + manifest.json.
+  // Picked once (or on the first export), persisted like the photo folder.
+  const [saveDir, setSaveDir] = useState(null);
+  const [exportStatus, setExportStatus] = useState(null); // { ok, text }
+  useEffect(() => {
+    idbGet('saveDir')
+      .then((handle) => handle && setSaveDir(handle))
+      .catch(() => {});
+  }, []);
+
+  async function pickSaveDir() {
+    const handle = await window.showDirectoryPicker({ id: 'snappy-save-dir', mode: 'readwrite' });
+    setSaveDir(handle);
+    idbSet('saveDir', handle).catch(() => {});
+    return handle;
+  }
+
+  async function chooseSaveDir() {
+    try {
+      await pickSaveDir();
+    } catch (err) {
+      if (err?.name !== 'AbortError') console.error('choosing save folder failed', err);
+    }
+  }
+
+  function clearSaveDir() {
+    setSaveDir(null);
+    idbDelete('saveDir').catch(() => {});
+  }
+
+  // A handle restored from IndexedDB comes back with its permission reset to
+  // "prompt" — re-requesting inside the Export-all click keeps the activation.
+  async function hasWritePermission(handle) {
+    try {
+      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+      return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+    } catch {
+      return false;
+    }
+  }
+
+  const boxApis = useRef(new Map()); // boxKey → { export, exportBlob, loadFile }
 
   // Theme: 'system' follows the OS; 'light'/'dark' pin it via data-theme.
   // A ?theme= URL param wins over the stored choice.
@@ -161,16 +204,71 @@ export default function App() {
 
   async function exportAll() {
     setExporting(true);
+    setExportStatus(null);
     try {
-      // Sequential with a gap so the browser treats them as separate downloads.
+      if (!window.showDirectoryPicker) {
+        await exportAllViaDownloads();
+        return;
+      }
+
+      // Reuse the persisted folder if it's still writable; otherwise (first
+      // export, revoked permission, deleted folder) prompt for one now — the
+      // click gives us the user activation both pickers and prompts need.
+      let dir = saveDir;
+      if (dir && !(await hasWritePermission(dir))) dir = null;
+      try {
+        if (!dir) dir = await pickSaveDir();
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        throw err;
+      }
+
+      const figs = figNumbers(rows);
+      let count = 0;
       for (const key of allBoxKeys) {
         if (!filledBoxes.has(key)) continue;
-        await boxApis.current.get(key)?.export();
-        await new Promise((r) => setTimeout(r, 350));
+        const blob = await boxApis.current.get(key)?.exportBlob();
+        if (!blob) continue;
+        await writeToDir(dir, figName(figs.get(key)), blob);
+        count++;
       }
+      const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString());
+      await writeToDir(dir, 'manifest.json', new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+      setExportStatus({ ok: true, text: `Saved ${count} image${count === 1 ? '' : 's'} + manifest.json to “${dir.name}”` });
+    } catch (err) {
+      console.error('export all failed', err);
+      setExportStatus({ ok: false, text: 'Export failed — see the browser console for details.' });
     } finally {
       setExporting(false);
     }
+  }
+
+  async function writeToDir(dir, name, blob) {
+    const fileHandle = await dir.getFileHandle(name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  }
+
+  // No File System Access API (e.g. Firefox/Safari): fall back to one download
+  // per image, sequential with a gap so the browser treats them separately,
+  // plus the manifest as a download of its own.
+  async function exportAllViaDownloads() {
+    let count = 0;
+    for (const key of allBoxKeys) {
+      if (!filledBoxes.has(key)) continue;
+      await boxApis.current.get(key)?.export();
+      count++;
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString());
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'manifest.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportStatus({ ok: true, text: `Downloaded ${count} image${count === 1 ? '' : 's'} + manifest.json` });
   }
 
   // Document-order figure number of each row's first box.
@@ -190,8 +288,9 @@ export default function App() {
         </button>
       </header>
       <p className="phase-note">
-        Phase 2 — row composer. Every cell's shape and export resolution derive from the page profile below.
-        Paste (Ctrl+V) fills the first empty box, or aim it with a box's ⌖ button.
+        Phase 3 — save bundle. Every cell's shape and export resolution derive from the page profile below.
+        Paste (Ctrl+V) fills the first empty box, or aim it with a box's ⌖ button. Export all writes
+        fig-NN.jpg + manifest.json straight into your save folder.
       </p>
 
       <SettingsPanel
@@ -200,6 +299,9 @@ export default function App() {
         photoDir={photoDir}
         onChoosePhotoDir={choosePhotoDir}
         onClearPhotoDir={clearPhotoDir}
+        saveDir={saveDir}
+        onChooseSaveDir={chooseSaveDir}
+        onClearSaveDir={clearSaveDir}
       />
 
       {problems.length === 0 ? (
@@ -253,6 +355,9 @@ export default function App() {
               {exporting ? 'Exporting…' : `Export all (${filledBoxes.size})`}
             </button>
           </div>
+          {exportStatus && (
+            <p className={`export-status${exportStatus.ok ? '' : ' export-status-error'}`}>{exportStatus.text}</p>
+          )}
         </>
       ) : (
         <p className="profile-invalid">Fix the page profile above to continue — the current values leave no room for image cells.</p>

@@ -31,7 +31,16 @@ function NumberField({ label, value, onCommit, min = 0, step = 0.1, unit }) {
   );
 }
 
-export default function SettingsPanel({ profile, onChange, photoDir, onChoosePhotoDir, onClearPhotoDir }) {
+export default function SettingsPanel({
+  profile,
+  onChange,
+  photoDir,
+  onChoosePhotoDir,
+  onClearPhotoDir,
+  saveDir,
+  onChooseSaveDir,
+  onClearSaveDir,
+}) {
   const problems = profileProblems(profile);
   const set = (patch) => onChange({ ...profile, ...patch });
   const setHeight = (id, mm) => onChange({ ...profile, rowHeightsMm: { ...profile.rowHeightsMm, [id]: mm } });
@@ -82,13 +91,22 @@ export default function SettingsPanel({ profile, onChange, photoDir, onChoosePho
       </div>
 
       {'showDirectoryPicker' in window && (
-        <div className="settings-folder">
-          <span>Photo folder:</span>
-          {photoDir ? <strong>{photoDir.name}</strong> : <span className="settings-folder-none">last-used folder</span>}
-          <button onClick={onChoosePhotoDir}>Choose…</button>
-          {photoDir && <button onClick={onClearPhotoDir}>Clear</button>}
-          <span className="settings-folder-hint">where the image picker opens</span>
-        </div>
+        <>
+          <div className="settings-folder">
+            <span>Photo folder:</span>
+            {photoDir ? <strong>{photoDir.name}</strong> : <span className="settings-folder-none">last-used folder</span>}
+            <button onClick={onChoosePhotoDir}>Choose…</button>
+            {photoDir && <button onClick={onClearPhotoDir}>Clear</button>}
+            <span className="settings-folder-hint">where the image picker opens</span>
+          </div>
+          <div className="settings-folder">
+            <span>Save folder:</span>
+            {saveDir ? <strong>{saveDir.name}</strong> : <span className="settings-folder-none">asked on first export</span>}
+            <button onClick={onChooseSaveDir}>Choose…</button>
+            {saveDir && <button onClick={onClearSaveDir}>Clear</button>}
+            <span className="settings-folder-hint">where Export all writes fig-NN.jpg + manifest.json</span>
+          </div>
+        </>
       )}
 
       {problems.length > 0 ? (
