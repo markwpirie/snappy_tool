@@ -36,16 +36,19 @@ export default function App() {
   // the picker with an instant AbortError after repeated prompt dismissals),
   // so failures surface in the settings panel instead of only the console.
   const [folderNote, setFolderNote] = useState(null);
-  const dirPickerBusy = useRef(false);
+  const dirPickerBusy = useRef(0); // epoch ms of a pending picker, 0 when idle
 
   async function pickDir(opts) {
-    // Chromium never settles a picker whose bundled permission prompt was left
-    // unanswered, and a second call then throws NotAllowedError "File picker
-    // already active" — turn both into one recognizable busy error.
-    if (dirPickerBusy.current) {
+    // Chromium never settles a picker whose dialog or bundled permission
+    // prompt is stuck, and a second call then throws NotAllowedError "File
+    // picker already active" — turn both into one recognizable busy error.
+    // After 30s we let a retry through anyway: if a picker truly is open the
+    // browser throws again, but a ghost (dialog that never appeared) doesn't
+    // get to brick the button until reload.
+    if (dirPickerBusy.current && Date.now() - dirPickerBusy.current < 30000) {
       throw Object.assign(new Error('a folder picker is already open'), { name: 'PickerBusyError' });
     }
-    dirPickerBusy.current = true;
+    dirPickerBusy.current = Date.now();
     const t0 = performance.now();
     try {
       return await window.showDirectoryPicker(opts);
@@ -60,7 +63,7 @@ export default function App() {
       }
       throw err;
     } finally {
-      dirPickerBusy.current = false;
+      dirPickerBusy.current = 0;
     }
   }
 
@@ -69,17 +72,23 @@ export default function App() {
     console.error(`choosing ${which} folder failed`, err);
     setFolderNote(
       err?.name === 'PickerBusyError'
-        ? 'A folder picker or its permission prompt is still open — answer or close it (it may have collapsed into an icon by the address bar). Reloading the page also clears it.'
+        ? 'A folder picker or its permission prompt is still open — answer or close it (it may have collapsed into an icon by the address bar). If nothing is visibly open, try again in 30 seconds or reload the page.'
         : err?.name === 'PickerBlockedError'
           ? `The browser refused to open the ${which}-folder picker (it can lock this after dismissed prompts). Click the icon left of the address bar → reset the site's permissions, or restart the browser, then try again.`
           : `Choosing the ${which} folder failed: ${err?.name ?? 'Error'} — ${err?.message ?? err}`
     );
   }
 
+  // Both folder choosers avoid the browser's own picker memory (`id` /
+  // last-used) on purpose: on macOS it can latch onto a since-deleted temp
+  // folder (Photos-library picks), and a picker aimed at an inaccessible
+  // location can fail to show any dialog while its promise hangs forever.
+  // We persist the handles ourselves, so start at the current choice or a
+  // well-known directory that is guaranteed to exist.
   async function choosePhotoDir() {
     setFolderNote(null);
     try {
-      const handle = await pickDir({ id: 'snappy-photo-dir' });
+      const handle = await pickDir({ startIn: photoDir ?? 'pictures' });
       setPhotoDir(handle);
       idbSet('photoDir', handle).catch(() => {});
     } catch (err) {
@@ -108,7 +117,7 @@ export default function App() {
   // picker already active" on every later click). Write permission is
   // requested at export time instead, where a fresh click activation exists.
   async function pickSaveDir(mode) {
-    const opts = { id: 'snappy-save-dir' };
+    const opts = { startIn: saveDir ?? 'documents' };
     if (mode) opts.mode = mode;
     const handle = await pickDir(opts);
     setSaveDir(handle);
