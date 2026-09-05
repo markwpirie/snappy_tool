@@ -13,6 +13,15 @@ A React + Vite web app for cropping photos into page-derived figure layouts for 
 - **Never hard-code page geometry.** The page profile (page size, margins, gutter, DPI, row heights) is fully user-configurable because the user works on documents with templates that aren't theirs. A4/220dpi are only defaults in `src/pageGeometry.js` (`DEFAULT_PROFILE`). All box dimensions must be derived from the `pageProfile` object at runtime — no mm or px values baked into components.
 - **Target browser is Edge (Chromium) on a Windows work PC.** The Mac is only the dev machine — don't over-fit macOS quirks. The File System Access API (`showOpenFilePicker`, `showDirectoryPicker`) is in-scope by design; keep the hidden-`<input type=file>` fallback working.
 
+## File System Access picker gotchas (hard-won)
+
+- **VS Code's embedded browser cannot show FSA pickers** — the promise hangs forever and later calls throw NotAllowedError "File picker already active". A "picker does nothing" report means: first ask which browser. Test FSA flows only in real Chrome/Edge.
+- Pickers must be called from a `click` handler (pointerdown doesn't reliably carry user activation).
+- Don't pass `id` to the directory pickers: Chromium's remembered location can go stale (macOS Photos temp folders), and the app persists chosen handles in IndexedDB anyway. Pass `startIn` (current handle, else a well-known directory) instead.
+- Don't pass `mode: 'readwrite'` when choosing the save folder from settings — the bundled permission prompt can hang the picker promise. Request write permission at export time (`App.hasWritePermission`), where the click provides activation. The mid-export fresh pick keeps `readwrite`.
+- Chromium refuses to grant root folders like Downloads/Desktop ("contains system files") — subfolders are fine; nothing to fix app-side.
+- Never swallow picker errors: `pickDir` in `App.jsx` maps instant AbortErrors (browser refused to open) and busy/hung pickers to visible warnings in the settings panel, with a 30s self-heal on the busy guard.
+
 ## Architecture
 
 Pure math lives in dependency-free modules with unit tests; React components stay thin over them:
