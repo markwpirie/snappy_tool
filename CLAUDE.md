@@ -7,6 +7,7 @@ A React + Vite web app for cropping photos into page-derived figure layouts for 
 - `npm run dev` — Vite dev server (http://localhost:5173)
 - `npm test` — vitest run (unit tests for the pure math modules)
 - `npm run build` — production build to `dist/` (gitignored)
+- `start.bat` (Windows only) — double-click launcher for the non-technical day-to-day path: `npm install`s on first run if `node_modules` is missing, starts the dev server, and opens it in Edge specifically (not the OS default browser — see the Firefox mix-up this avoided). Point a Desktop shortcut at it. Runs the dev server, not a production build, so it always reflects whatever's checked out — no separate build step to remember.
 
 ## Hard constraints
 
@@ -57,5 +58,8 @@ Check on the work PC in Edge before trusting either:
       macOS Chrome. Check both light and dark (`?theme=` still overrides).
 - [ ] Themed scrollbars (`::-webkit-scrollbar-*`) — Windows scrollbars are always-visible (unlike
       macOS overlay bars), so confirm the themed ones don't look cramped or clash with content.
+- [ ] `start.bat` on a clean clone: bootstraps `node_modules` correctly, opens Edge (not the OS
+      default browser) at the right port, and stopping it (closing the window) actually kills the
+      dev server rather than leaving an orphan `node` process.
 
 Delete this section once it's actually been run through on Windows.
