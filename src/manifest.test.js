@@ -1,13 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { buildManifest, figName, figNumbers } from './manifest.js';
+import { batchIdFromIso, buildManifest, figName, figNumbers, manifestName } from './manifest.js';
 import { DEFAULT_PROFILE } from './pageGeometry.js';
 
 const WHEN = '2026-09-05T12:00:00.000Z';
+const BATCH = batchIdFromIso(WHEN);
+
+describe('batchIdFromIso', () => {
+  it('strips punctuation and milliseconds into a filename-safe id', () => {
+    expect(batchIdFromIso(WHEN)).toBe('20260905-120000');
+  });
+});
 
 describe('figName', () => {
-  it('zero-pads to two digits', () => {
-    expect(figName(1)).toBe('fig-01.jpg');
-    expect(figName(12)).toBe('fig-12.jpg');
+  it('zero-pads to two digits, scoped to a batch id', () => {
+    expect(figName(BATCH, 1)).toBe(`fig-${BATCH}-01.jpg`);
+    expect(figName(BATCH, 12)).toBe(`fig-${BATCH}-12.jpg`);
+  });
+});
+
+describe('manifestName', () => {
+  it('scopes the manifest filename to a batch id', () => {
+    expect(manifestName(BATCH)).toBe(`manifest-${BATCH}.json`);
   });
 });
 
@@ -35,6 +48,7 @@ describe('buildManifest', () => {
   it('matches the proposal worked example for a full 2-up standard row', () => {
     const m = buildManifest(DEFAULT_PROFILE, rows.slice(0, 1), new Set(['1-0', '1-1']), WHEN);
     expect(m.generated).toBe(WHEN);
+    expect(m.batchId).toBe(BATCH);
     expect(m.pageProfile).toEqual({
       pageWidthMm: 210,
       marginLeftMm: 25.4,
@@ -48,8 +62,8 @@ describe('buildManifest', () => {
         type: '2up',
         heightPreset: 'standard',
         images: [
-          { file: 'fig-01.jpg', widthMm: 77.1, heightMm: 75, caption: '' },
-          { file: 'fig-02.jpg', widthMm: 77.1, heightMm: 75, caption: '' },
+          { file: `fig-${BATCH}-01.jpg`, widthMm: 77.1, heightMm: 75, caption: '' },
+          { file: `fig-${BATCH}-02.jpg`, widthMm: 77.1, heightMm: 75, caption: '' },
         ],
       },
     ]);
@@ -58,8 +72,8 @@ describe('buildManifest', () => {
   it('skips empty boxes but keeps their figure numbers', () => {
     const m = buildManifest(DEFAULT_PROFILE, rows, new Set(['1-1', '2-0']), WHEN);
     expect(m.rows).toHaveLength(2);
-    expect(m.rows[0].images).toEqual([{ file: 'fig-02.jpg', widthMm: 77.1, heightMm: 75, caption: '' }]);
-    expect(m.rows[1].images).toEqual([{ file: 'fig-03.jpg', widthMm: 159.2, heightMm: 110, caption: '' }]);
+    expect(m.rows[0].images).toEqual([{ file: `fig-${BATCH}-02.jpg`, widthMm: 77.1, heightMm: 75, caption: '' }]);
+    expect(m.rows[1].images).toEqual([{ file: `fig-${BATCH}-03.jpg`, widthMm: 159.2, heightMm: 110, caption: '' }]);
   });
 
   it('omits rows with no filled boxes', () => {
@@ -88,6 +102,6 @@ describe('buildManifest', () => {
     };
     const m = buildManifest(profile, rows.slice(0, 1), new Set(['1-0']), WHEN);
     expect(m.pageProfile.usableWidthMm).toBe(175.9);
-    expect(m.rows[0].images[0]).toEqual({ file: 'fig-01.jpg', widthMm: 85.95, heightMm: 80, caption: '' });
+    expect(m.rows[0].images[0]).toEqual({ file: `fig-${BATCH}-01.jpg`, widthMm: 85.95, heightMm: 80, caption: '' });
   });
 });

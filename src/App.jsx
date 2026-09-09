@@ -3,7 +3,7 @@ import Row from './Row.jsx';
 import SettingsPanel from './SettingsPanel.jsx';
 import { DEFAULT_PROFILE, ROW_TYPES, HEIGHT_PRESETS, rowCellCount, profileProblems } from './pageGeometry.js';
 import { planImport } from './importPlan.js';
-import { buildManifest, figName, figNumbers } from './manifest.js';
+import { batchIdFromIso, buildManifest, figName, figNumbers, manifestName } from './manifest.js';
 import { idbGet, idbSet, idbDelete } from './idb.js';
 
 // On-screen scale: how many CSS px represent one page mm. Purely cosmetic —
@@ -363,18 +363,21 @@ export default function App() {
         return;
       }
 
+      const generated = new Date().toISOString();
+      const batchId = batchIdFromIso(generated);
       const figs = figNumbers(rows);
       let count = 0;
       for (const key of allBoxKeys) {
         if (!filledBoxes.has(key)) continue;
         const blob = await boxApis.current.get(key)?.exportBlob();
         if (!blob) continue;
-        await writeToDir(dir, figName(figs.get(key)), blob);
+        await writeToDir(dir, figName(batchId, figs.get(key)), blob);
         count++;
       }
-      const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString(), captions);
-      await writeToDir(dir, 'manifest.json', new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
-      setExportStatus({ ok: true, text: `Saved ${count} image${count === 1 ? '' : 's'} + manifest.json to “${dir.name}”` });
+      const manifest = buildManifest(profile, rows, filledBoxes, generated, captions);
+      const mName = manifestName(batchId);
+      await writeToDir(dir, mName, new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
+      setExportStatus({ ok: true, text: `Saved ${count} image${count === 1 ? '' : 's'} + ${mName} to “${dir.name}”` });
     } catch (err) {
       console.error('export all failed', err);
       setExportStatus({ ok: false, text: 'Export failed — see the browser console for details.' });
@@ -401,14 +404,16 @@ export default function App() {
       count++;
       await new Promise((r) => setTimeout(r, 350));
     }
-    const manifest = buildManifest(profile, rows, filledBoxes, new Date().toISOString(), captions);
+    const generated = new Date().toISOString();
+    const manifest = buildManifest(profile, rows, filledBoxes, generated, captions);
+    const mName = manifestName(batchIdFromIso(generated));
     const url = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'manifest.json';
+    a.download = mName;
     a.click();
     URL.revokeObjectURL(url);
-    setExportStatus({ ok: true, text: `Downloaded ${count} image${count === 1 ? '' : 's'} + manifest.json` });
+    setExportStatus({ ok: true, text: `Downloaded ${count} image${count === 1 ? '' : 's'} + ${mName}` });
   }
 
   // Document-order figure number of each row's first box.

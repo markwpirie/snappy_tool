@@ -30,6 +30,8 @@ Pure math lives in dependency-free modules with unit tests; React components sta
 - `src/pageGeometry.js` — mm→px derivation: `cellWidthMm = (usableWidthMm − gutter×(n−1))/n`, `mmToPx = round(mm/25.4 × dpi)`. Worked examples from the proposal are pinned in `pageGeometry.test.js`.
 - `src/cropMath.js` — pan/zoom/clamp math (`minCoverScale`, `clampOffset`, `zoomAt`, `reframe`, `sourceRect`).
 - `src/importPlan.js` — pure planner for distributing a multi-file import across empty boxes and deciding how many rows to append.
+- `src/manifest.js` — builds the export bundle's manifest (rows → images with `widthMm`/`caption`) and derives batch-scoped filenames (`fig-<batchid>-NN.jpg`, `manifest-<batchid>.json`) from the `generated` timestamp, so multiple export batches can share one output folder without overwriting each other. Consumed by `word-macro/snappy_import.bas`.
+- `src/captionCase.js` — Proper Case formatter applied on caption-field blur in `CropBox`. Title-cases ordinary words (small words — articles/conjunctions/short prepositions/"to be" forms — lowercase unless first) while leaving anything that looks technical (digits, ALL-CAPS, camelCase-style internal capitals) exactly as typed, plus a small hand-maintained whitelist (`DEFAULT_WHITELIST`) for short abbreviations that can't be told apart from an ordinary word by shape alone (`Exd`, `Em`, `AFT`, `ATC`, `JB`, …). Doesn't capitalize the last word of a caption the way full title-case convention would — known gap, left as-is; hand-edit in the caption field if a specific caption needs it.
 - `src/App.jsx` — owns profile/rows/theme state. Boxes are keyed `${row.id}-${i}`; figures are numbered in document order. Cross-box coordination (Export all, multi-import) uses an imperative registry: each `CropBox` registers `{ export, loadFile }` via `onRegister` into a Map in App — image state itself is never lifted.
 - `src/CropBox.jsx` — canvas crop box. Note: `showOpenFilePicker` must be called from a `click` handler (pointerdown doesn't reliably carry user activation in Chromium).
 - `src/idb.js` — minimal IndexedDB KV for persisting `FileSystemDirectoryHandle`s (localStorage can't hold them). Reuse it for the Phase 3 output-folder handle.
@@ -40,26 +42,9 @@ Pure math lives in dependency-free modules with unit tests; React components sta
 - Pure math: vitest (`*.test.js` next to the module).
 - Interactive flows: throwaway puppeteer-core scripts against system Chrome (headless) — mock `showOpenFilePicker`/`showDirectoryPicker` with `evaluateOnNewDocument`, build drops with `DragEvent` + `DataTransfer`, intercept `waitForFileChooser` for the fallback path. These scripts live in the session scratchpad, not the repo.
 
-## Next test pass — Windows/Edge (pending as of 2026-09-06)
+## Windows/Edge test pass
 
-Phase 4 (captions, session persistence, New document) and a visual redesign of `styles.css`
-were built and verified only on the Mac in real Chrome — never on the actual target machine.
-Check on the work PC in Edge before trusting either:
-
-- [ ] Photo folder / Save folder pickers actually open (the FSA gotchas above were all found on
-      Chromium, but Edge has its own history of policy/version quirks — confirm on this machine).
-- [ ] Full paste workflow end-to-end: Greenshot capture → Alt-Tab → Ctrl+V → frame → aim at a
-      specific box with ⌖ → Ctrl+V again (replace) → Export all.
-- [ ] Captions: type one, reload the page, confirm it survived (rows should too; images should
-      *not* reappear — that's by design). Check `manifest.json` actually carries the caption text.
-- [ ] "New document" clears rows/images/captions and only confirms when there's something to lose.
-- [ ] Visual: the new gradient title, card shadows, and custom `input[type=range]` thumb styling
-      render sanely — Windows font rendering and Edge's own slider chrome can look different from
-      macOS Chrome. Check both light and dark (`?theme=` still overrides).
-- [ ] Themed scrollbars (`::-webkit-scrollbar-*`) — Windows scrollbars are always-visible (unlike
-      macOS overlay bars), so confirm the themed ones don't look cramped or clash with content.
-- [ ] `start.bat` on a clean clone: bootstraps `node_modules` correctly, opens Edge (not the OS
-      default browser) at the right port, and stopping it (closing the window) actually kills the
-      dev server rather than leaving an orphan `node` process.
-
-Delete this section once it's actually been run through on Windows.
+Full pass completed 2026-09-09 on the actual work PC (Edge/Windows) — pickers, paste-import and
+replace-via-aim, caption persistence across reload, New document's conditional confirm, the visual
+redesign, and `start.bat` on a clean machine (Node.js had to be installed first via
+`winget install OpenJS.NodeJS.LTS`) all check out. `npm test` passes (36/36).

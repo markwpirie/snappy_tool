@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { initialView, minCoverScale, clampOffset, zoomAt, reframe, sourceRect } from './cropMath.js';
+import { properCaseCaption } from './captionCase.js';
 
 export default function CropBox({
   displayW,
@@ -298,6 +299,7 @@ export default function CropBox({
           placeholder="Caption…"
           value={caption ?? ''}
           onChange={(e) => onCaptionChange?.(e.target.value)}
+          onBlur={(e) => onCaptionChange?.(properCaseCaption(e.target.value))}
         />
       </div>
 

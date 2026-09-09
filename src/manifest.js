@@ -1,14 +1,24 @@
 import { boxGeometry, rowCellCount, usableWidthMm } from './pageGeometry.js';
 
-// Filenames are document-order figure numbers. A box keeps its number even if
-// earlier boxes are empty, so on-screen fig labels and exported names agree.
-export const figName = (n) => `fig-${String(n).padStart(2, '0')}.jpg`;
+// Turns the manifest's `generated` timestamp into a filesystem-safe id shared
+// by that export's image filenames and its own manifest filename, e.g.
+// "2026-09-09T10:54:45.867Z" -> "20260909-105445". Lets multiple export
+// batches land in the same output folder without overwriting each other.
+export const batchIdFromIso = (iso) => iso.replace(/[-:]/g, '').replace(/\.\d+Z$/, '').replace('T', '-');
 
-// The save bundle's manifest.json, consumed by the Word VBA macro
-// (InsertFiguresWithCaptions): it inserts each file at the stated widthMm, so
-// Word never rescales meaningfully. Pure so it's unit-testable. `captions` is
+// Filenames are batch id + document-order figure number. A box keeps its
+// number even if earlier boxes are empty, so on-screen fig labels and
+// exported names agree.
+export const figName = (batchId, n) => `fig-${batchId}-${String(n).padStart(2, '0')}.jpg`;
+
+export const manifestName = (batchId) => `manifest-${batchId}.json`;
+
+// One export batch's manifest, consumed by the Word VBA macro (word-macro/
+// snappy_import.bas): it inserts each file at the stated widthMm, so Word
+// never rescales meaningfully. Pure so it's unit-testable. `captions` is
 // a boxKey → text map; omit it (or leave a box out of it) for an empty caption.
 export function buildManifest(profile, rows, filledKeys, generated, captions = {}) {
+  const batchId = batchIdFromIso(generated);
   let fig = 1;
   const outRows = [];
   for (const row of rows) {
@@ -19,7 +29,7 @@ export function buildManifest(profile, rows, filledKeys, generated, captions = {
       const key = `${row.id}-${i}`;
       if (!filledKeys.has(key)) continue;
       images.push({
-        file: figName(n),
+        file: figName(batchId, n),
         widthMm: Number(geo.widthMm.toFixed(2)),
         heightMm: geo.heightMm,
         caption: captions[key] ?? '',
@@ -29,6 +39,7 @@ export function buildManifest(profile, rows, filledKeys, generated, captions = {
   }
   return {
     generated,
+    batchId,
     pageProfile: {
       pageWidthMm: profile.pageWidthMm,
       marginLeftMm: profile.marginLeftMm,
