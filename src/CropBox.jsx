@@ -127,10 +127,19 @@ export default function CropBox({
     return () => window.removeEventListener('paste', onPaste);
   }, [isPasteTarget, isPasteOverride, displayW, displayH]);
 
+  // The original file, not the cropped render — lets a box that inherits
+  // this image (e.g. a row shrink bumping it to a new row) fit its own crop
+  // against full source detail instead of re-cropping an already-tight one.
+  async function getSourceBlob() {
+    if (!image) return null;
+    const res = await fetch(image.el.src);
+    return res.blob();
+  }
+
   // Expose an imperative export handle so App's "Export all" can walk the
   // boxes in document order.
   useEffect(() => {
-    onRegister?.({ export: exportImage, exportBlob: renderBlob, loadFile });
+    onRegister?.({ export: exportImage, exportBlob: renderBlob, getSourceBlob, loadFile });
     return () => onRegister?.(null);
   });
 

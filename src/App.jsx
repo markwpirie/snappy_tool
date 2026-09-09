@@ -54,6 +54,7 @@ export default function App() {
   const [pasteOverride, setPasteOverride] = useState(null); // boxKey the user aimed Ctrl+V at
   const [exporting, setExporting] = useState(false);
   const [pendingImport, setPendingImport] = useState(null); // { afterKey, files } from a multi-pick
+  const [pendingRelocate, setPendingRelocate] = useState(null); // items bumped to a new row by a row shrink
 
   // Persist rows/captions/profile/add-row picks (not images) so an accidental
   // close doesn't lose the layout.
@@ -227,14 +228,44 @@ export default function App() {
   }
 
   function updateRow(id, patch) {
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    const current = rows.find((r) => r.id === id);
+    // Shrinking a row (e.g. 3-up → 2-up) would otherwise unmount the boxes
+    // beyond the new count and silently drop their image/caption. Instead,
+    // bump any filled ones into a fresh row of just the right size, inserted
+    // right after this one.
+    let relocateRow = null;
+    let relocateItems = null;
+    if (patch.type && current && rowCellCount(patch.type) < rowCellCount(current.type)) {
+      const newCount = rowCellCount(patch.type);
+      const oldCount = rowCellCount(current.type);
+      const overflowKeys = Array.from({ length: oldCount - newCount }, (_, i) => `${id}-${newCount + i}`).filter(
+        (k) => filledBoxes.has(k) || captions[k]
+      );
+      const relocateType = overflowKeys.length > 0 ? ROW_TYPES.find((t) => t.count >= overflowKeys.length)?.id : null;
+      if (relocateType) {
+        relocateRow = newRow(relocateType, current.heightPreset);
+        relocateItems = overflowKeys.map((k, i) => ({
+          targetKey: `${relocateRow.id}-${i}`,
+          caption: captions[k],
+          blobPromise: boxApis.current.get(k)?.getSourceBlob() ?? Promise.resolve(null),
+        }));
+      }
+    }
+
+    setRows((rs) => {
+      const next = rs.map((r) => (r.id === id ? { ...r, ...patch } : r));
+      if (relocateRow) next.splice(next.findIndex((r) => r.id === id) + 1, 0, relocateRow);
+      return next;
+    });
     if (patch.type) {
-      // Boxes beyond the new count unmount and lose their image/caption.
+      // Boxes beyond the new count unmount; their content has already been
+      // captured above for relocation (if any), so just clear the bookkeeping.
       const count = rowCellCount(patch.type);
       const dropped = (k) => k.startsWith(`${id}-`) && Number(k.split('-')[1]) >= count;
       setFilledBoxes((prev) => new Set([...prev].filter((k) => !dropped(k))));
       setCaptions((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !dropped(k))));
     }
+    if (relocateItems) setPendingRelocate(relocateItems);
   }
 
   function deleteRow(id) {
@@ -327,6 +358,18 @@ export default function App() {
     setRows((rs) => [...rs, ...Array.from({ length: plan.rowsToAdd }, () => newRow(addTypeEffective, addHeight))]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingImport, rows]);
+
+  // Places items bumped by a row shrink into the freshly-inserted row, once
+  // its boxes have mounted and registered their loadFile handles.
+  useEffect(() => {
+    if (!pendingRelocate) return;
+    if (!pendingRelocate.every((item) => boxApis.current.has(item.targetKey))) return;
+    pendingRelocate.forEach((item) => {
+      item.blobPromise.then((blob) => blob && boxApis.current.get(item.targetKey)?.loadFile(blob));
+      if (item.caption) setCaptions((prev) => ({ ...prev, [item.targetKey]: item.caption }));
+    });
+    setPendingRelocate(null);
+  }, [pendingRelocate, rows]);
 
   async function exportAll() {
     setExporting(true);
